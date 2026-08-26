@@ -1,14 +1,16 @@
 """
-tohum — 3.5: Esik homeostazi kapali. Sadece plastisite.
+tohum — 3.6a: C genelleme testi.
 
-Egitim: esik sabit 0.5, sadece baglantilar degisir
-Test:   A ve B icin ayri kopya ag, ayni baslangic
+Egitim: 1500 adim A/B (C yok)
+Test:   A, B, C icin ayri kopya aglar
+        Ogrenme=OFF, esik=0.5 sabit, enerji=MAX
+
+C daha once hic gormedigi bir girdi.
+Mevcut yapiyla nasil tepki veriyor?
 """
 
 
 import random
-import json
-from collections import defaultdict
 
 
 class Noron:
@@ -34,13 +36,15 @@ class Noron:
 
 
 def egit(adim=1500):
-    noronlar = [Noron(i, 0.5) for i in range(4)]
+    # 5 noron: N0(init), N1(A), N2(B), N3(cikis), N4(geri besleme)
+    noronlar = [Noron(i) for i in range(5)]
     bag = [
         {"k": 0, "h": 1, "g": 1.0},
         {"k": 0, "h": 2, "g": 1.0},
         {"k": 1, "h": 3, "g": 1.0},
         {"k": 2, "h": 3, "g": 1.0},
-        {"k": 3, "h": 0, "g": 1.0},
+        {"k": 3, "h": 4, "g": 1.0},
+        {"k": 4, "h": 0, "g": 1.0},
     ]
     noronlar[0].deger = 1.5
     son_ates = {}
@@ -73,28 +77,27 @@ def egit(adim=1500):
                 b["g"] -= 0.01
             b["g"] = max(0.05, min(2.5, b["g"]))
 
-        # Esik homeostazi YOK — esikler sabit 0.5
-
         for n in noronlar:
             n.deger *= 0.95
 
         if adim % 300 == 0:
             print(f"  {adim:4d} | 0->1:{bag[0]['g']:.2f} 0->2:{bag[1]['g']:.2f} "
-                  f"1->3:{bag[2]['g']:.2f} 2->3:{bag[3]['g']:.2f}")
+                  f"1->3:{bag[2]['g']:.2f} 2->3:{bag[3]['g']:.2f} "
+                  f"3->4:{bag[4]['g']:.2f} 4->0:{bag[5]['g']:.2f}")
 
     return bag
 
 
-def test(bag, girdi, tekrar=20):
-    n = [Noron(i, 0.5) for i in range(4)]
-    akt = [0, 0, 0, 0]
+def test(bag, girdi, girdi_noron, tekrar=20):
+    n = [Noron(i) for i in range(5)]
+    akt = [0, 0, 0, 0, 0]
 
     for _ in range(tekrar):
         for x in n:
             x.enerji = 5.0
             x.deger = 0.0
 
-        n[1 if girdi == "A" else 2].deger += 2.0
+        n[girdi_noron].deger += 2.0
 
         for _ in range(5):
             ates = [x.idx for x in n if x.aktif_mi()]
@@ -112,7 +115,9 @@ def test(bag, girdi, tekrar=20):
 
 
 if __name__ == "__main__":
-    print("deney 3.5: esik homeostazi kapali")
+    print("deney 3.6a: C genelleme testi")
+    print("  egitim: A/B (C yok)")
+    print("  test: A, B, C (ayri kopya aglar)")
     print()
 
     bag = egit(adim=1500)
@@ -123,28 +128,50 @@ if __name__ == "__main__":
         print(f"  {b['k']}->{b['h']}: {b['g']:.2f}")
 
     print()
-    print("TEST (ogrenme=OFF, esik=0.5 sabit, enerji=MAX):")
-    a = test(bag, "A", 20)
-    b = test(bag, "B", 20)
+    print("TEST (ogrenme=OFF, esik=0.5, enerji=MAX):")
+    a = test(bag, "A", 1, 20)
+    b = test(bag, "B", 2, 20)
+    c = test(bag, "C", 3, 20)
 
-    ta = max(sum(a), 1)
-    tb = max(sum(b), 1)
-
-    print(f"  A: N0={a[0]:3d}({a[0]/ta*100:.0f}%) N1={a[1]:3d}({a[1]/ta*100:.0f}%) "
-          f"N2={a[2]:3d}({a[2]/ta*100:.0f}%) N3={a[3]:3d}({a[3]/ta*100:.0f}%)")
-    print(f"  B: N0={b[0]:3d}({b[0]/tb*100:.0f}%) N1={b[1]:3d}({b[1]/tb*100:.0f}%) "
-          f"N2={b[2]:3d}({b[2]/tb*100:.0f}%) N3={b[3]:3d}({b[3]/tb*100:.0f}%)")
+    for isim, veri in [("A", a), ("B", b), ("C", c)]:
+        t = max(sum(veri), 1)
+        pct = [f"N{i}={veri[i]/t*100:.0f}%" for i in range(5)]
+        print(f"  {isim}: {' '.join(pct)}")
 
     print()
-    print("  AYRIM:")
-    for i in range(4):
-        af, bf = a[i]/ta*100, b[i]/tb*100
-        d = af - bf
-        s = "A>B" if d > 10 else ("B>A" if d < -10 else "~esit")
-        print(f"    N{i}: A={af:.0f}% B={bf:.0f}% [{s}]")
+    print("  AYRIM (3'luluk):")
+    for i in range(5):
+        af = a[i]/max(sum(a),1)*100
+        bf = b[i]/max(sum(b),1)*100
+        cf = c[i]/max(sum(c),1)*100
+        fark_ab = af - bf
+        fark_ac = af - cf
+        fark_bc = bf - cf
 
-    tf = sum(abs(a[i]/ta - b[i]/tb) for i in range(4))
+        if abs(fark_ab) > 10:
+            sab = "A>B" if fark_ab > 0 else "B>A"
+        else:
+            sab = "~"
+        if abs(fark_ac) > 10:
+            sac = "A>C" if fark_ac > 0 else "C>A"
+        else:
+            sac = "~"
+        if abs(fark_bc) > 10:
+            sbc = "B>C" if fark_bc > 0 else "C>B"
+        else:
+            sbc = "~"
+
+        print(f"    N{i}: A={af:.0f}% B={bf:.0f}% C={cf:.0f}% [{sab} {sac} {sbc}]")
+
     print()
-    if tf > 0.3: print("  [OK] Net A/B ayrimi!")
-    elif tf > 0.15: print("  [~] Hafif ayrim")
-    else: print("  [!] Net ayrim yok")
+    # C farkli mi?
+    a_patern = tuple(round(a[i]/max(sum(a),1)*100) for i in range(5))
+    b_patern = tuple(round(b[i]/max(sum(b),1)*100) for i in range(5))
+    c_patern = tuple(round(c[i]/max(sum(c),1)*100) for i in range(5))
+
+    if c_patern == a_patern:
+        print("  [!] C ayni A gibi davraniyor")
+    elif c_patern == b_patern:
+        print("  [!] C ayni B gibi davraniyor")
+    else:
+        print("  [OK] C farkli bir patern gosteriyor!")
